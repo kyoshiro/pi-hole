@@ -1698,7 +1698,7 @@ install_dependent_packages() {
     # amount of download traffic.
     # NOTE: We may be able to use this installArray in the future to create a list of package that were
     # installed by us, and remove only the installed packages, and not the entire list.
-    if is_command apt-get ; then
+    if ${PKG_MANAGER} == "apt-get" ; then
         # For each package, check if it's already installed (and if so, don't add it to the installArray)
         for i in "$@"; do
             printf "  %b Checking for %s..." "${INFO}" "${i}"
@@ -1725,39 +1725,43 @@ install_dependent_packages() {
     fi
 
     # Install Fedora/CentOS packages
-    for i in "$@"; do
-        # For each package, check if it's already installed (and if so, don't add it to the installArray)
-        printf "  %b Checking for %s..." "${INFO}" "${i}"
-        if "${PKG_MANAGER}" -q list installed "${i}" &> /dev/null; then
-            printf "%b  %b Checking for %s\\n" "${OVER}" "${TICK}" "${i}"
-        else
-            printf "%b  %b Checking for %s (will be installed)\\n" "${OVER}" "${INFO}" "${i}"
-            installArray+=("${i}")
+    if ${PKG_MANAGER} == "dnf" || ${PKG_MANAGER} == "yum"; then
+        for i in "$@"; do
+            # For each package, check if it's already installed (and if so, don't add it to the installArray)
+            printf "  %b Checking for %s..." "${INFO}" "${i}"
+            if "${PKG_MANAGER}" -q list installed "${i}" &> /dev/null; then
+                printf "%b  %b Checking for %s\\n" "${OVER}" "${TICK}" "${i}"
+            else
+                printf "%b  %b Checking for %s (will be installed)\\n" "${OVER}" "${INFO}" "${i}"
+                installArray+=("${i}")
+            fi
+        done
+        # If there's anything to install, install everything in the list.
+        if [[ "${#installArray[@]}" -gt 0 ]]; then
+            printf "  %b Processing %s install(s) for: %s, please wait...\\n" "${INFO}" "${PKG_MANAGER}" "${installArray[*]}"
+            printf '%*s\n' "${c}" '' | tr " " -;
+            "${PKG_INSTALL[@]}" "${installArray[@]}"
+            printf '%*s\n' "${c}" '' | tr " " -;
+            return 0
         fi
-    done
-    # If there's anything to install, install everything in the list.
-    if [[ "${#installArray[@]}" -gt 0 ]]; then
-        printf "  %b Processing %s install(s) for: %s, please wait...\\n" "${INFO}" "${PKG_MANAGER}" "${installArray[*]}"
-        printf '%*s\n' "${c}" '' | tr " " -;
-        "${PKG_INSTALL[@]}" "${installArray[@]}"
-        printf '%*s\n' "${c}" '' | tr " " -;
-        return 0
     fi
 
 
     # Emerge Gentoo packages
-    for i in "$@"; do
-        # Put all packages in install list because emerge will skip already installed packages anyway
-        installArray+=("${i}")
-    done
-    # If there's anything to install, install everything in the list.
-    if [[ "${#installArray[@]}" -gt 0 ]]; then
-        # Promt the user to install the missing packages
-        printf "  %b Processing %s install(s) for: %s, please wait...\\n" "${INFO}" "${PKG_MANAGER}" "${installArray[*]}"
-        printf '%*s\n' "${c}" '' | tr " " -;
-        "${PKG_INSTALL[@]}" "${installArray[@]}"
-        printf '%*s\n' "${c}" '' | tr " " -;
-        return 0
+    if ${PKG_MANAGER} == "emerge" ; then
+        for i in "$@"; do
+            # Put all packages in install list because emerge will skip already installed packages anyway
+            installArray+=("${i}")
+        done
+        # If there's anything to install, install everything in the list.
+        if [[ "${#installArray[@]}" -gt 0 ]]; then
+            # Promt the user to install the missing packages
+            printf "  %b Processing %s install(s) for: %s, please wait...\\n" "${INFO}" "${PKG_MANAGER}" "${installArray[*]}"
+            printf '%*s\n' "${c}" '' | tr " " -;
+            "${PKG_INSTALL[@]}" "${installArray[@]}"
+            printf '%*s\n' "${c}" '' | tr " " -;
+            return 0
+        fi
     fi
     printf "\\n"
     return
