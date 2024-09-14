@@ -404,7 +404,7 @@ package_manager_detect() {
         cron_pkg="virtual/cron"
         # #########################################
         INSTALLER_DEPS=(dev-util/dialog "${iproute_pkg}" dev-vcs/git "${dhcp_pkg}" sys-apps/net-tools dev-libs/newt sys-process/procps)
-        PIHOLE_DEPS=(sys-devel/bc "${cron_pkg}" app-misc/ca-certificates net-misc/curl sys-apps/findutils net-dns/dnsmasq net-misc/iputils sys-process/lsof net-analyzer/netcat app-admin/sudo app-arch/unzip net-dns/dnssec-root app-misc/jq et-misc/wget net-dns/libidn2)
+        PIHOLE_DEPS=(sys-devel/bc "${cron_pkg}" app-misc/ca-certificates net-misc/curl sys-apps/findutils net-dns/dnsmasq net-misc/iputils sys-process/lsof net-analyzer/netcat app-admin/sudo app-arch/unzip net-dns/dnssec-root app-misc/jq net-misc/wget net-dns/libidn2)
         PIHOLE_WEB_DEPS=(www-servers/lighttpd "${phpVer}")
         LIGHTTPD_USER="lighttpd"
         LIGHTTPD_GROUP="lighttpd"
