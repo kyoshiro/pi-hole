@@ -354,22 +354,31 @@ package_manager_detect() {
             PKG_MANAGER="yum"
         fi
 
-        # Fedora and family update cache on every PKG_INSTALL call, no need for a separate update.
-        UPDATE_PKG_CACHE=":"
-        PKG_INSTALL=(${PKG_MANAGER} install -y)
-        PKG_COUNT="${PKG_MANAGER} check-update | egrep '(.i686|.x86|.noarch|.arm|.src)' | wc -l"
-        INSTALLER_DEPS=(dialog git iproute net-tools newt procps-ng)
-        PIHOLE_DEPS=(bc bind-utils cronie curl dnsmasq findutils nmap-ncat sudo unzip wget libidn2 psmisc)
-        PIHOLE_WEB_DEPS=(lighttpd lighttpd-fastcgi php php-common php-cli php-pdo)
-        # EPEL (https://fedoraproject.org/wiki/EPEL) is required for lighttpd on CentOS
-        if grep -qi 'centos' /etc/redhat-release; then
-            INSTALLER_DEPS=("${INSTALLER_DEPS[@]}" "epel-release");
-        fi
-            LIGHTTPD_USER="lighttpd"
-            LIGHTTPD_GROUP="lighttpd"
-            LIGHTTPD_CFG="lighttpd.conf.fedora"
-            DNSMASQ_USER="nobody"
+        # These variable names match the ones for apt-get. See above for an explanation of what they are for.
+        PKG_INSTALL=("${PKG_MANAGER}" install -y)
+        # CentOS package manager returns 100 when there are packages to update so we need to || true to prevent the script from exiting.
+        PKG_COUNT="${PKG_MANAGER} check-update | grep -E '(.i686|.x86|.noarch|.arm|.src|.riscv64)' | wc -l || true"
+        OS_CHECK_DEPS=(grep bind-utils)
+        INSTALLER_DEPS=(git dialog iproute newt procps-ng chkconfig ca-certificates)
+        PIHOLE_DEPS=(cronie curl findutils sudo unzip libidn2 psmisc libcap nmap-ncat jq)
+        PIHOLE_WEB_DEPS=(lighttpd lighttpd-fastcgi php-common php-cli php-pdo php-xml php-json php-intl)
+        LIGHTTPD_USER="lighttpd"
+        LIGHTTPD_GROUP="lighttpd"
+        LIGHTTPD_CFG="lighttpd.conf.fedora"
 
+        # If the host OS is centos (or a derivative), epel is required for lighttpd
+        if ! grep -qiE 'fedora|fedberry' /etc/redhat-release; then
+            if rpm -qa | grep -qi 'epel'; then
+                printf "  %b EPEL repository already installed\\n" "${TICK}"
+            else
+                local RH_RELEASE EPEL_PKG
+                # EPEL not already installed, add it based on the release version
+                RH_RELEASE=$(grep -oP '(?<= )[0-9]+(?=\.?)' /etc/redhat-release)
+                EPEL_PKG="https://dl.fedoraproject.org/pub/epel/epel-release-latest-${RH_RELEASE}.noarch.rpm"
+                printf "  %b Enabling EPEL package repository (https://fedoraproject.org/wiki/EPEL)\\n" "${INFO}"
+                "${PKG_INSTALL[@]}" "${EPEL_PKG}"
+                printf "  %b Installed %s\\n" "${TICK}" "${EPEL_PKG}"
+            fi
         # If neither apt-get or rmp/dnf are found,
         # check for emerge to see if it's gentoo family OS
         elif command -v emerge -get &> /dev/null; then
@@ -377,7 +386,7 @@ package_manager_detect() {
             #############################################
             PKG_MANAGER="emerge"
             UPDATE_PKG_CACHE=":" # don't execute eix-sync
-            PKG_INSTALL=("${PKG_MANAGER}")
+            PKG_INSTALL=("${PKG_MANAGER}" -anv)
             PKG_COUNT="echo 0 || true" # Do not check for outdated packages in gentoo
             # #########################################
             # fixes for dependency differences
@@ -393,7 +402,7 @@ package_manager_detect() {
             cron_pkg="virtual/cron"
             # #########################################
             INSTALLER_DEPS=(dev-util/dialog "${iproute_pkg}" dev-vcs/git "${dhcp_pkg}" sys-apps/net-tools dev-libs/newt sys-process/procps)
-            PIHOLE_DEPS=(sys-devel/bc "${cron_pkg}" net-misc/curl sys-apps/findutils net-dns/dnsmasq net-misc/iputils sys-process/lsof net-analyzer/netcat app-admin/sudo app-arch/unzip net-misc/wget net-dns/libidn2)
+            PIHOLE_DEPS=(sys-devel/bc "${cron_pkg}" app-misc/ca-certificates net-misc/curl sys-apps/findutils net-dns/dnsmasq net-misc/iputils sys-process/lsof net-analyzer/netcat app-admin/sudo app-arch/unzip nnet-dns/dnssec-root app-misc/jq et-misc/wget net-dns/libidn2)
             PIHOLE_WEB_DEPS=(www-servers/lighttpd "${phpVer}")
             LIGHTTPD_USER="lighttpd"
             LIGHTTPD_GROUP="lighttpd"
@@ -407,6 +416,8 @@ package_manager_detect() {
             # so exit the installer
             exit
         fi
+    fi
+    return 0
 }
 
 # A function for checking if a directory is a git repository
@@ -1682,83 +1693,37 @@ install_dependent_packages() {
     # No spinner - conflicts with set -e
     declare -a installArray
 
-  # Debian based package install - debconf will download the entire package list
-  # so we just create an array of packages not currently installed to cut down on the
-  # amount of download traffic.
-  # NOTE: We may be able to use this installArray in the future to create a list of package that were
-  # installed by us, and remove only the installed packages, and not the entire list.
-  if command -v debconf-apt-progress &> /dev/null; then
-    # For each package,
-    for i in "${argArray1[@]}"; do
-      echo -ne "  ${INFO} Checking for $i..."
-      #
-      if dpkg-query -W -f='${Status}' "${i}" 2>/dev/null | grep "ok installed" &> /dev/null; then
-        #
-        echo -e "${OVER}  ${TICK} Checking for $i"
-      else
-        #
-        echo -e "${OVER}  ${INFO} Checking for $i (will be installed)"
-        #
-        installArray+=("${i}")
-      fi
-    done
-    #
-    if [[ "${#installArray[@]}" -gt 0 ]]; then
-      #
-      test_dpkg_lock
-      #
-      debconf-apt-progress -- "${PKG_INSTALL[@]}" "${installArray[@]}"
-      return
+    # Debian based package install - debconf will download the entire package list
+    # so we just create an array of packages not currently installed to cut down on the
+    # amount of download traffic.
+    # NOTE: We may be able to use this installArray in the future to create a list of package that were
+    # installed by us, and remove only the installed packages, and not the entire list.
+    if is_command apt-get ; then
+        # For each package, check if it's already installed (and if so, don't add it to the installArray)
+        for i in "$@"; do
+            printf "  %b Checking for %s..." "${INFO}" "${i}"
+            if dpkg-query -W -f='${Status}' "${i}" 2>/dev/null | grep "ok installed" &> /dev/null; then
+                printf "%b  %b Checking for %s\\n" "${OVER}" "${TICK}" "${i}"
+            else
+                printf "%b  %b Checking for %s (will be installed)\\n" "${OVER}" "${INFO}" "${i}"
+                installArray+=("${i}")
+            fi
+        done
+        # If there's anything to install, install everything in the list.
+        if [[ "${#installArray[@]}" -gt 0 ]]; then
+            test_dpkg_lock
+            # Running apt-get install with minimal output can cause some issues with
+            # requiring user input (e.g password for phpmyadmin see #218)
+            printf "  %b Processing %s install(s) for: %s, please wait...\\n" "${INFO}" "${PKG_MANAGER}" "${installArray[*]}"
+            printf '%*s\n' "${c}" '' | tr " " -;
+            "${PKG_INSTALL[@]}" "${installArray[@]}"
+            printf '%*s\n' "${c}" '' | tr " " -;
+            return
+        fi
+        printf "\\n"
+        return 0
     fi
-      echo ""
-      #
-      return 0
-  fi
 
-  if command -v eix &> /dev/null; then
-	  # For each package
-    for i in "${argArray1[@]}"; do
-      echo -ne "  ${INFO} Checking for $i..."
-	  # Test if package is installed
-      if eix "${i}" | grep "\\[I\\]" &> /dev/null; then
-        # Success: Is installed
-        echo -e "${OVER}  ${TICK} Checking for $i"
-      else
-        # Needs to be installed
-        echo -e "${OVER}  ${INFO} Checking for $i (needs to be installed)"
-        # Store in install list
-        installArray+=("${i}")
-      fi
-    done
-    # All dependencies installed?
-    if [[ "${#installArray[@]}" -gt 0 ]]; then
-	  # On gentoo: Promt the user to install the missing packages
-	  echo -e "  ${CROSS} Please install the following dependencies before continuing: " "${installArray[@]}"
-	  # Exit installer
-      exit 1
-    fi
-	return 0
-  fi
-  # Install Fedora/CentOS packages
-  for i in "${argArray1[@]}"; do
-    echo -ne "  ${INFO} Checking for $i..."
-    #
-    if ${PKG_MANAGER} -q list installed "${i}" &> /dev/null; then
-      echo -e "${OVER}  ${TICK} Checking for $i"
-    else
-      echo -e "${OVER}  ${INFO} Checking for $i (will be installed)"
-      #
-      installArray+=("${i}")
-    fi
-  done
-  #
-  if [[ "${#installArray[@]}" -gt 0 ]]; then
-    #
-    "${PKG_INSTALL[@]}" "${installArray[@]}" &> /dev/null
-    return
-  fi
-  echo ""
-  return 0
     # Install Fedora/CentOS packages
     for i in "$@"; do
         # For each package, check if it's already installed (and if so, don't add it to the installArray)
@@ -1776,7 +1741,23 @@ install_dependent_packages() {
         printf '%*s\n' "${c}" '' | tr " " -;
         "${PKG_INSTALL[@]}" "${installArray[@]}"
         printf '%*s\n' "${c}" '' | tr " " -;
-        return
+        return 0
+    fi
+
+
+    # Emerge Gentoo packages
+    for i in "$@"; do
+        # Put all packages in install list because emerge will skip already installed packages anyway
+        installArray+=("${i}")
+    done
+    # If there's anything to install, install everything in the list.
+    if [[ "${#installArray[@]}" -gt 0 ]]; then
+        # Promt the user to install the missing packages
+        printf "  %b Processing %s install(s) for: %s, please wait...\\n" "${INFO}" "${PKG_MANAGER}" "${installArray[*]}"
+        printf '%*s\n' "${c}" '' | tr " " -;
+        "${PKG_INSTALL[@]}" "${installArray[@]}"
+        printf '%*s\n' "${c}" '' | tr " " -;
+        return 0
     fi
     printf "\\n"
     return 0
