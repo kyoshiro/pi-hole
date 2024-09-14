@@ -379,43 +379,44 @@ package_manager_detect() {
                 "${PKG_INSTALL[@]}" "${EPEL_PKG}"
                 printf "  %b Installed %s\\n" "${TICK}" "${EPEL_PKG}"
             fi
-        # If neither apt-get or rmp/dnf are found,
-        # check for emerge to see if it's gentoo family OS
-        elif is_command emerge ; then
-            #Gentoo
-            #############################################
-            PKG_MANAGER="emerge"
-            UPDATE_PKG_CACHE=":" # don't execute eix-sync
-            PKG_INSTALL=("${PKG_MANAGER}" -anv)
-            PKG_COUNT="echo 0 || true" # Do not check for outdated packages in gentoo
-            # #########################################
-            # fixes for dependency differences
-            # gentoo uses sys-apps/iproute2
-            iproute_pkg="sys-apps/iproute2"
-
-            # USE for dev-lang/php: +sqlite +fpm +sockets
-            phpVer="dev-lang/php"
-
-            # Select dhcp
-            dhcp_pkg="net-misc/dhcp"
-            # Select your cron implementation
-            cron_pkg="virtual/cron"
-            # #########################################
-            INSTALLER_DEPS=(dev-util/dialog "${iproute_pkg}" dev-vcs/git "${dhcp_pkg}" sys-apps/net-tools dev-libs/newt sys-process/procps)
-            PIHOLE_DEPS=(sys-devel/bc "${cron_pkg}" app-misc/ca-certificates net-misc/curl sys-apps/findutils net-dns/dnsmasq net-misc/iputils sys-process/lsof net-analyzer/netcat app-admin/sudo app-arch/unzip nnet-dns/dnssec-root app-misc/jq et-misc/wget net-dns/libidn2)
-            PIHOLE_WEB_DEPS=(www-servers/lighttpd "${phpVer}")
-            LIGHTTPD_USER="lighttpd"
-            LIGHTTPD_GROUP="lighttpd"
-            # Reuse the fedora config file
-            LIGHTTPD_CFG="lighttpd.conf.gentoo"
-            DNSMASQ_USER="dnsmasq"
-        # If neither apt-get, emerge, or rmp/dnf are found
-        else
-            # it's not an OS we can support,
-            echo -e "  ${CROSS} OS distribution not supported"
-            # so exit the installer
-            exit
         fi
+
+    # If neither apt-get or rmp/dnf are found,
+    # check for emerge to see if it's gentoo family OS
+    elif is_command emerge ; then
+        #Gentoo
+        #############################################
+        PKG_MANAGER="emerge"
+        UPDATE_PKG_CACHE=":" # don't execute eix-sync
+        PKG_INSTALL=("${PKG_MANAGER}" -anv)
+        PKG_COUNT="echo 0 || true" # Do not check for outdated packages in gentoo
+        # #########################################
+        # fixes for dependency differences
+        # gentoo uses sys-apps/iproute2
+        iproute_pkg="sys-apps/iproute2"
+
+        # USE for dev-lang/php: +sqlite +fpm +sockets
+        phpVer="dev-lang/php"
+
+        # Select dhcp
+        dhcp_pkg="net-misc/dhcp"
+        # Select your cron implementation
+        cron_pkg="virtual/cron"
+        # #########################################
+        INSTALLER_DEPS=(dev-util/dialog "${iproute_pkg}" dev-vcs/git "${dhcp_pkg}" sys-apps/net-tools dev-libs/newt sys-process/procps)
+        PIHOLE_DEPS=(sys-devel/bc "${cron_pkg}" app-misc/ca-certificates net-misc/curl sys-apps/findutils net-dns/dnsmasq net-misc/iputils sys-process/lsof net-analyzer/netcat app-admin/sudo app-arch/unzip nnet-dns/dnssec-root app-misc/jq et-misc/wget net-dns/libidn2)
+        PIHOLE_WEB_DEPS=(www-servers/lighttpd "${phpVer}")
+        LIGHTTPD_USER="lighttpd"
+        LIGHTTPD_GROUP="lighttpd"
+        # Reuse the fedora config file
+        LIGHTTPD_CFG="lighttpd.conf.gentoo"
+        DNSMASQ_USER="dnsmasq"
+    # If neither apt-get, emerge, or rmp/dnf are found
+    else
+        # it's not an OS we can support,
+        echo -e "  ${CROSS} OS distribution not supported"
+        # so exit the installer
+        exit
     fi
     return 0
 }
