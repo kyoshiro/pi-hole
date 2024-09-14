@@ -381,7 +381,7 @@ package_manager_detect() {
             fi
         # If neither apt-get or rmp/dnf are found,
         # check for emerge to see if it's gentoo family OS
-        elif command -v emerge -get &> /dev/null; then
+        elif is_command emerge ; then
             #Gentoo
             #############################################
             PKG_MANAGER="emerge"
