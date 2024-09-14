@@ -1698,7 +1698,7 @@ install_dependent_packages() {
     # amount of download traffic.
     # NOTE: We may be able to use this installArray in the future to create a list of package that were
     # installed by us, and remove only the installed packages, and not the entire list.
-    if ${PKG_MANAGER} == "apt-get" ; then
+    if [[ "${PKG_MANAGER}" == "apt-get" ]]; then
         # For each package, check if it's already installed (and if so, don't add it to the installArray)
         for i in "$@"; do
             printf "  %b Checking for %s..." "${INFO}" "${i}"
@@ -1725,7 +1725,7 @@ install_dependent_packages() {
     fi
 
     # Install Fedora/CentOS packages
-    if ${PKG_MANAGER} == "dnf" || ${PKG_MANAGER} == "yum"; then
+    if [[ "${PKG_MANAGER}" == "dnf" || "${PKG_MANAGER}" == "yum"]]; then
         for i in "$@"; do
             # For each package, check if it's already installed (and if so, don't add it to the installArray)
             printf "  %b Checking for %s..." "${INFO}" "${i}"
@@ -1748,7 +1748,7 @@ install_dependent_packages() {
 
 
     # Emerge Gentoo packages
-    if ${PKG_MANAGER} == "emerge" ; then
+    if [[ "${PKG_MANAGER}" == "emerge" ]]; then
         for i in "$@"; do
             # Put all packages in install list because emerge will skip already installed packages anyway
             installArray+=("${i}")
