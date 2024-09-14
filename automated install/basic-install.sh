@@ -1760,7 +1760,7 @@ install_dependent_packages() {
         return 0
     fi
     printf "\\n"
-    return 0
+    return
 }
 
 # Create logfiles if necessary
