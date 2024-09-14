@@ -1725,7 +1725,7 @@ install_dependent_packages() {
     fi
 
     # Install Fedora/CentOS packages
-    if [[ "${PKG_MANAGER}" == "dnf" || "${PKG_MANAGER}" == "yum"]]; then
+    if [[ "${PKG_MANAGER}" == "dnf" || "${PKG_MANAGER}" == "yum" ]]; then
         for i in "$@"; do
             # For each package, check if it's already installed (and if so, don't add it to the installArray)
             printf "  %b Checking for %s..." "${INFO}" "${i}"
