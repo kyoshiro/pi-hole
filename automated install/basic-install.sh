@@ -2697,11 +2697,11 @@ main() {
 
     # Install the Core dependencies
     local dep_install_list=("${PIHOLE_DEPS[@]}")
-    echo "Pihole base dependencies" "${dep_install_list[@]}"
+    echo "Pihole base dependencies:" "${dep_install_list[@]}"
     if [[ "${INSTALL_WEB_SERVER}" == true ]]; then
         # And, if the setting says so, install the Web admin interface dependencies
         dep_install_list+=("${PIHOLE_WEB_DEPS[@]}")
-        echo "Web extended dependencies: "${dep_install_list[@]}"
+        echo "Web extended dependencies:" "${dep_install_list[@]}"
     fi
 
     # Install packages used by the actual software
