@@ -22,7 +22,7 @@
 set -e
 
 # Append common folders to the PATH to ensure that all basic commands are available.
-# When using "su" an incomplete PATH could be passed: https://github.com/pi-hole/pi-hole/issues/3209
+# When using "su" an incomplete PATH could be passed: https://github.com/kyoshiro/pi-hole/issues/3209
 export PATH+=':/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'
 
 ######## VARIABLES #########
@@ -74,7 +74,7 @@ webroot="/var/www/html"
 # Two notable scripts are gravity.sh (used to generate the HOSTS file) and advanced/Scripts/webpage.sh (used to install the Web admin interface)
 webInterfaceGitUrl="https://github.com/pi-hole/web.git"
 webInterfaceDir="${webroot}/admin"
-piholeGitUrl="https://github.com/pi-hole/pi-hole.git"
+piholeGitUrl="https://github.com/kyoshiro/pi-hole.git"
 PI_HOLE_LOCAL_REPO="/etc/.pihole"
 # List of pihole scripts, stored in an array
 PI_HOLE_FILES=(chronometer list piholeDebug piholeLogFlush setupLCD update version gravity uninstall webpage)
@@ -685,7 +685,7 @@ chooseInterface() {
 
 # This lets us prefer ULA addresses over GUA
 # This caused problems for some users when their ISP changed their IPv6 addresses
-# See https://github.com/pi-hole/pi-hole/issues/1473#issuecomment-301745953
+# See https://github.com/kyoshiro/pi-hole/issues/1473#issuecomment-301745953
 testIPv6() {
     # first will contain fda2 (ULA)
     printf -v first "%s" "${1%%:*}"
@@ -2423,7 +2423,7 @@ get_binary_name() {
         # Special case: This is a 32 bit OS, installed on a 64 bit machine
         # -> change machine processor to download the 32 bit executable
         # We only check this for Debian-based systems as this has been an issue
-        # in the past (see https://github.com/pi-hole/pi-hole/pull/2004)
+        # in the past (see https://github.com/kyoshiro/pi-hole/pull/2004)
         if [[ "${dpkgarch}" == "i386" ]]; then
             printf "%b  %b Detected 32bit (i686) processor\\n" "${OVER}" "${TICK}"
             l_binary="pihole-FTL-linux-x86_32"
@@ -2601,7 +2601,7 @@ main() {
             # when run via curl piping
             if [[ "$0" == "bash" ]]; then
                 # Download the install script and run it with admin rights
-                exec curl -sSL https://raw.githubusercontent.com/pi-hole/pi-hole/master/automated%20install/basic-install.sh | sudo bash "$@"
+                exec curl -sSL https://raw.githubusercontent.com/kyoshiro/pi-hole/master/automated%20install/basic-install.sh | sudo bash "$@"
             else
                 # when run via calling local bash script
                 exec sudo bash "$0" "$@"
