@@ -1689,6 +1689,8 @@ notify_package_updates_available() {
 
 install_dependent_packages() {
 
+    echo "Checking / Installing with ${PKG_MANAGER}"
+
     # Install packages passed in via argument array
     # No spinner - conflicts with set -e
     declare -a installArray
