@@ -396,6 +396,8 @@ package_manager_detect() {
         iproute_pkg="sys-apps/iproute2"
 
         # USE for dev-lang/php: +sqlite +fpm +sockets
+        USE_FLAGS="cgi fpm intl php sqlite sockets"
+
         phpVer="dev-lang/php"
 
         # Select dhcp
@@ -1758,9 +1760,9 @@ install_dependent_packages() {
         # If there's anything to install, install everything in the list.
         if [[ "${#installArray[@]}" -gt 0 ]]; then
             # Promt the user to install the missing packages
-            printf "  %b Processing %s install(s) for: %s, please wait...\\n" "${INFO}" "${PKG_MANAGER}" "${installArray[*]}"
+            printf "  %b Processing %s %s install(s) for: %s, please wait...\\n" "${INFO}" "${USE_FLAGS}" "${PKG_MANAGER}" "${installArray[*]}"
             printf '%*s\n' "${c}" '' | tr " " -;
-            "${PKG_INSTALL[@]}" "${installArray[@]}"
+            "USE=${USE_FLAGS[@]}" "${PKG_INSTALL[@]}" "${installArray[@]}"
             printf '%*s\n' "${c}" '' | tr " " -;
             return 0
         fi
@@ -2700,11 +2702,9 @@ main() {
 
     # Install the Core dependencies
     local dep_install_list=("${PIHOLE_DEPS[@]}")
-    echo "Pihole base dependencies:" "${dep_install_list[@]}"
     if [[ "${INSTALL_WEB_SERVER}" == true ]]; then
         # And, if the setting says so, install the Web admin interface dependencies
         dep_install_list+=("${PIHOLE_WEB_DEPS[@]}")
-        echo "Web extended dependencies:" "${dep_install_list[@]}"
     fi
 
     # Install packages used by the actual software
