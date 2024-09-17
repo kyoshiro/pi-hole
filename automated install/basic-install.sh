@@ -309,18 +309,18 @@ package_manager_detect() {
         # Update package cache
         update_package_cache || exit 1
         # Check for and determine version number (major and minor) of current php install
-        local phpVer="php"
+        local php_pkg="php"
         if is_command php ; then
-            phpVer="$(php <<< "<?php echo PHP_VERSION ?>")"
+            php_pkg="$(php <<< "<?php echo PHP_VERSION ?>")"
             # Check if the first character of the string is numeric
-            if [[ ${phpVer:0:1} =~ [1-9] ]]; then
-                printf "  %b Existing PHP installation detected : PHP version %s\\n" "${INFO}" "${phpVer}"
+            if [[ ${php_pkg:0:1} =~ [1-9] ]]; then
+                printf "  %b Existing PHP installation detected : PHP version %s\\n" "${INFO}" "${php_pkg}"
                 printf -v phpInsMajor "%d" "$(php <<< "<?php echo PHP_MAJOR_VERSION ?>")"
                 printf -v phpInsMinor "%d" "$(php <<< "<?php echo PHP_MINOR_VERSION ?>")"
-                phpVer="php$phpInsMajor.$phpInsMinor"
+                php_pkg="php$phpInsMajor.$phpInsMinor"
             else
                 printf "  %b No valid PHP installation detected!\\n" "${CROSS}"
-                printf "  %b PHP version : %s\\n" "${INFO}" "${phpVer}"
+                printf "  %b PHP version : %s\\n" "${INFO}" "${php_pkg}"
                 printf "  %b Aborting installation.\\n" "${CROSS}"
                 exit 1
             fi
@@ -333,10 +333,10 @@ package_manager_detect() {
         PIHOLE_DEPS=(cron curl iputils-ping psmisc sudo unzip idn2 libcap2-bin dns-root-data libcap2 netcat-openbsd procps jq)
         # Packages required for the Web admin interface (stored as an array)
         # It's useful to separate this from Pi-hole, since the two repos are also setup separately
-        PIHOLE_WEB_DEPS=(lighttpd "${phpVer}-common" "${phpVer}-cgi" "${phpVer}-sqlite3" "${phpVer}-xml" "${phpVer}-intl")
+        PIHOLE_WEB_DEPS=(lighttpd "${php_pkg}-common" "${php_pkg}-cgi" "${php_pkg}-sqlite3" "${php_pkg}-xml" "${php_pkg}-intl")
         # Prior to PHP8.0, JSON functionality is provided as dedicated module, required by Pi-hole web: https://www.php.net/manual/json.installation.php
         if [[ -z "${phpInsMajor}" || "${phpInsMajor}" -lt 8 ]]; then
-            PIHOLE_WEB_DEPS+=("${phpVer}-json")
+            PIHOLE_WEB_DEPS+=("${php_pkg}-json")
         fi
         # The Web server user,
         LIGHTTPD_USER="www-data"
@@ -396,9 +396,10 @@ package_manager_detect() {
         iproute_pkg="sys-apps/iproute2"
 
         # USE for dev-lang/php: +sqlite +fpm +sockets
-        USE_FLAGS="cgi fpm intl php sqlite sockets"
-
-        phpVer="dev-lang/php"
+        PHP_USE_FLAGS="+cgi +fpm +intl +sqlite +sockets"
+        LIGHTTPD_USE_FLAGS="+php"
+        php_pkg="dev-lang/php"
+        lighttpd_pkg="www-servers/lighttpd"
 
         # Select dhcp
         dhcp_pkg="net-misc/dhcp"
@@ -407,7 +408,7 @@ package_manager_detect() {
         # #########################################
         INSTALLER_DEPS=(dev-util/dialog "${iproute_pkg}" dev-vcs/git "${dhcp_pkg}" sys-apps/net-tools dev-libs/newt sys-process/procps)
         PIHOLE_DEPS=(sys-devel/bc "${cron_pkg}" app-misc/ca-certificates net-misc/curl sys-apps/findutils net-dns/dnsmasq net-misc/iputils sys-process/lsof net-analyzer/netcat app-admin/sudo app-arch/unzip net-dns/dnssec-root app-misc/jq net-misc/wget net-dns/libidn2)
-        PIHOLE_WEB_DEPS=(www-servers/lighttpd "${phpVer}")
+        PIHOLE_WEB_DEPS=("${lighttpd_pkg}" "${php_pkg}")
         LIGHTTPD_USER="lighttpd"
         LIGHTTPD_GROUP="lighttpd"
         # Reuse the fedora config file
@@ -1760,10 +1761,10 @@ install_dependent_packages() {
         # If there's anything to install, install everything in the list.
         if [[ "${#installArray[@]}" -gt 0 ]]; then
             # Promt the user to install the missing packages
-            printf "  %b Processing %s %s install(s) for: %s, please wait...\\n" "${INFO}" "USE=\"${USE_FLAGS}\"" "${PKG_MANAGER}" "${installArray[*]}"
-            printf '%s %*s\n' "${c}" '' | tr " " -;
-            "USE=\"${USE_FLAGS[@]}\"" "${PKG_INSTALL[@]}" "${installArray[@]}"
-            printf '%s %*s\n' "${c}" '' | tr " " -;
+            printf "  %b Processing %s install(s) for: %s, please wait...\\n" "${INFO}" "${PKG_MANAGER}" "${installArray[*]}"
+            printf '%*s\n' "${c}" '' | tr " " -;
+            "${PKG_INSTALL[@]}" "${installArray[@]}"
+            printf '%*s\n' "${c}" '' | tr " " -;
             return 0
         fi
     fi
@@ -2704,6 +2705,8 @@ main() {
     local dep_install_list=("${PIHOLE_DEPS[@]}")
     if [[ "${INSTALL_WEB_SERVER}" == true ]]; then
         # And, if the setting says so, install the Web admin interface dependencies
+        echo '"${php_pkg}" "${PHP_USE_FLAGS}"' > /etc/portage/package.use/88php
+        echo '"${lighttpd_pkg}" "${LIGHTTPD_USE_FLAGS}"' > /etc/portage/package.use/89lighttpd
         dep_install_list+=("${PIHOLE_WEB_DEPS[@]}")
     fi
 
