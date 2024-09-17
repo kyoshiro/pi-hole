@@ -1761,9 +1761,9 @@ install_dependent_packages() {
         if [[ "${#installArray[@]}" -gt 0 ]]; then
             # Promt the user to install the missing packages
             printf "  %b Processing %s %s install(s) for: %s, please wait...\\n" "${INFO}" "USE=\"${USE_FLAGS}\"" "${PKG_MANAGER}" "${installArray[*]}"
-            printf '%*s\n' "${c}" '' | tr " " -;
-            "USE=\"${USE_FLAGS[@]}\" ${PKG_INSTALL[@]}" "${installArray[@]}"
-            printf '%*s\n' "${c}" '' | tr " " -;
+            printf '%s %*s\n' "${c}" '' | tr " " -;
+            "USE=\"${USE_FLAGS[@]}\"" "${PKG_INSTALL[@]}" "${installArray[@]}"
+            printf '%s %*s\n' "${c}" '' | tr " " -;
             return 0
         fi
     fi
