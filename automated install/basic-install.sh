@@ -396,8 +396,8 @@ package_manager_detect() {
         iproute_pkg="sys-apps/iproute2"
 
         # USE for dev-lang/php: +sqlite +fpm +sockets
-        PHP_USE_FLAGS="+cgi +fpm +intl +sqlite +sockets"
-        LIGHTTPD_USE_FLAGS="+php"
+        PHP_USE_FLAGS="cgi fpm intl sqlite sockets"
+        LIGHTTPD_USE_FLAGS="php"
         php_pkg="dev-lang/php"
         lighttpd_pkg="www-servers/lighttpd"
 
