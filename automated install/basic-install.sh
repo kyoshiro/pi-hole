@@ -2705,8 +2705,8 @@ main() {
     local dep_install_list=("${PIHOLE_DEPS[@]}")
     if [[ "${INSTALL_WEB_SERVER}" == true ]]; then
         # And, if the setting says so, install the Web admin interface dependencies
-        echo '"${php_pkg}" "${PHP_USE_FLAGS}"' > /etc/portage/package.use/88php
-        echo '"${lighttpd_pkg}" "${LIGHTTPD_USE_FLAGS}"' > /etc/portage/package.use/89lighttpd
+        echo "${php_pkg} ${PHP_USE_FLAGS}" > /etc/portage/package.use/88php
+        echo "${lighttpd_pkg} ${LIGHTTPD_USE_FLAGS}" > /etc/portage/package.use/89lighttpd
         dep_install_list+=("${PIHOLE_WEB_DEPS[@]}")
     fi
 
