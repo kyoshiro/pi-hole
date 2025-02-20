@@ -192,13 +192,14 @@ Release: 1
 License: EUPL
 BuildArch: arm64 amd64 x86
 Summary: Pi-hole meta package
-Requires: dev-util/dialog, sys-apps/iproute2, dev-vcs/git, net-misc/dhcp, sys-apps/net-tools, dev-libs/newt, sys-process/procps, sys-devel/binutils, sys-apps/lshw, sys-apps/grep, sys-apps/findutils, sys-process/psmisc, sys-devel/bc, virtual/cron, net-misc/curl, sys-apps/findutils, net-dns/dnsmasq, net-misc/iputils, sys-process/lsof, net-analyzer/netcat, app-admin/sudo, app-arch/unzip, net-misc/wget, net-dns/libidn2, app-misc/jq, app-shells/bash-completion
+Requires: app-admin/sudo, app-arch/unzip, app-misc/jq, app-shells/bash-completion, dev-libs/newt, dev-util/dialog, dev-vcs/git, net-analyzer/netcat, net-dns/dnsmasq, net-dns/libidn2, net-misc/curl, net-misc/dhcp, net-misc/iputils, net-misc/wget, sys-apps/findutils, sys-apps/grep, sys-apps/iproute2, sys-apps/lshw, sys-apps/net-tools, sys-devel/binutils, sys-devel/bc, sys-process/lsof, sys-process/procps, sys-process/psmisc, virtual/cron
 %description
 Pi-hole meta package
 EOM
 )
 
 # #########################################
+<<<<<<< HEAD
 PIHOLE_GENTOO_DEP_PACKAGES=(dev-util/dialog \
                             sys-apps/iproute2 \
                             dev-vcs/git \
@@ -225,6 +226,9 @@ PIHOLE_GENTOO_DEP_PACKAGES=(dev-util/dialog \
                             net-dns/libidn2 \
                             app-misc/jq \
                             app-shells/bash-completion)
+
+PIHOLE_GENTOO_DEP_PACKAGES="app-admin/sudo app-arch/unzip app-misc/jq app-shells/bash-completion dev-libs/newt dev-util/dialog dev-vcs/git net-analyzer/netcat net-dns/dnsmasq net-dns/libidn2 net-misc/curl net-misc/dhcp net-misc/iputils net-misc/wget sys-apps/findutils sys-apps/grep sys-apps/iproute2 sys-apps/lshw sys-apps/net-tools sys-devel/binutils sys-devel/bc sys-process/lsof sys-process/procps sys-process/psmisc virtual/cron"
+# #########################################
 
 ######## Undocumented Flags. Shhh ########
 # These are undocumented flags; some of which we can use when repairing an installation
@@ -634,8 +638,7 @@ build_dependency_package(){
     # If neither apt-get or rmp/dnf are found,
     # check for emerge to see if it's gentoo family OS
     elif command -v emerge -get &> /dev/null; then
-
-        echp "No necessary to build a package for Gentoo"
+        printf "  %b ATM we do not create a pihole-meta package.\\n\\n" "${INFO}"
 
     # If neither apt-get, emerge, or rmp/dnf are found
     else
@@ -1647,7 +1650,7 @@ notify_package_updates_available() {
 install_dependent_packages() {
     # Install meta dependency package
     local str="Installing Pi-hole dependency package"
-    printf "  %b %s..." "${INFO}" "${str}"
+    printf "  %b %s...\\n" "${INFO}" "${str}"
 
     # Install Debian/Ubuntu packages
     if is_command apt-get; then
@@ -1703,8 +1706,13 @@ install_dependent_packages() {
     # Emerge Gentoo packages
     elif is_command emerge ; then
         for i in $PIHOLE_GENTOO_DEP_PACKAGES; do
-            # Put all packages in install list because emerge will skip already installed packages anyway
-            installArray+=("${i}")
+            # Check if the package is already installed
+            if eval "equery l" "${i}" &>/dev/null; then
+                printf "  %b  %b Checking for %s\\n" "${OVER}" "${TICK}" "${i}"
+            else
+                printf "  %b  %b Checking for %s\\n" "${OVER}" "${CROSS}" "${i}"
+                installArray+=("${i}")
+            fi
         done
         # If there's anything to install, install everything in the list.
         if [[ "${#installArray[@]}" -gt 0 ]]; then
@@ -1715,7 +1723,6 @@ install_dependent_packages() {
             printf '%*s\n' "${c}" '' | tr " " -;
             return 0
         fi
-    fi
 
     # If neither apt-get or yum/dnf package managers were found
     else
