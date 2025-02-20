@@ -14,7 +14,7 @@
 #
 # Install with this command (from your Linux machine):
 #
-# curl -sSL https://install.pi-hole.net | bash
+# curl -sSL https://raw.githubusercontent.com/kyoshiro/pi-hole/refs/heads/gentoo-installer/automated%20install/basic-install.sh | bash
 
 # -e option instructs bash to immediately exit if any command [1] has a non-zero exit status
 # We do not want users to end up with a partially working install, so we exit the script
@@ -22,7 +22,7 @@
 set -e
 
 # Append common folders to the PATH to ensure that all basic commands are available.
-# When using "su" an incomplete PATH could be passed: https://github.com/pi-hole/pi-hole/issues/3209
+# When using "su" an incomplete PATH could be passed: https://github.com/kyoshiro/pi-hole/issues/3209
 export PATH+=':/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'
 
 # Trap any errors, then exit
@@ -72,7 +72,7 @@ webroot="/var/www/html"
 # Two notable scripts are gravity.sh (used to generate the HOSTS file) and advanced/Scripts/webpage.sh (used to install the Web admin interface)
 webInterfaceGitUrl="https://github.com/pi-hole/web.git"
 webInterfaceDir="${webroot}/admin"
-piholeGitUrl="https://github.com/pi-hole/pi-hole.git"
+piholeGitUrl="-b gentoo-installer-v6 https://github.com/kyoshiro/pi-hole.git"
 PI_HOLE_LOCAL_REPO="/etc/.pihole"
 # List of pihole scripts, stored in an array
 PI_HOLE_FILES=(list piholeDebug piholeLogFlush setupLCD update version gravity uninstall webpage)
@@ -138,6 +138,50 @@ Pi-hole dependency meta package
 - First version being packaged
 EOM
 )
+
+# Content of Pi-hole's meta package control file on Gentoo based systems
+PIHOLE_META_PACKAGE_CONTROL_EMERGE=$(
+    cat <<EOM
+Name: pihole-meta
+Version: 0.1
+Release: 1
+License: EUPL
+BuildArch: arm64 amd64 x86
+Summary: Pi-hole meta package
+Requires: dev-util/dialog, sys-apps/iproute2, dev-vcs/git, net-misc/dhcp, sys-apps/net-tools, dev-libs/newt, sys-process/procps, sys-devel/binutils, sys-apps/lshw, sys-apps/grep, sys-apps/findutils, sys-process/psmisc, sys-devel/bc, virtual/cron, net-misc/curl, sys-apps/findutils, net-dns/dnsmasq, net-misc/iputils, sys-process/lsof, net-analyzer/netcat, app-admin/sudo, app-arch/unzip, net-misc/wget, net-dns/libidn2, app-misc/jq, app-shells/bash-completion
+%description
+Pi-hole meta package
+EOM
+)
+
+# #########################################
+PIHOLE_GENTOO_DEP_PACKAGES=(dev-util/dialog \
+                            sys-apps/iproute2 \
+                            dev-vcs/git \
+                            net-misc/dhcp \
+                            sys-apps/net-tools \
+                            dev-libs/newt \
+                            sys-process/procps \
+                            sys-devel/binutils \
+                            sys-apps/lshw \
+                            sys-apps/grep \
+                            sys-apps/findutils \
+                            sys-process/psmisc \
+                            sys-devel/bc \
+                            virtual/cron \
+                            net-misc/curl \
+                            sys-apps/findutils \
+                            net-dns/dnsmasq \
+                            net-misc/iputils \
+                            sys-process/lsof \
+                            net-analyzer/netcat \
+                            app-admin/sudo \
+                            app-arch/unzip \
+                            net-misc/wget \
+                            net-dns/libidn2 \
+                            app-misc/jq \
+                            app-shells/bash-completion)
+
 
 ######## Undocumented Flags. Shhh ########
 # These are undocumented flags; some of which we can use when repairing an installation
@@ -246,6 +290,7 @@ os_check_dig_response(){
 }
 
 os_check() {
+    PIHOLE_SKIP_OS_CHECK=true # true here for Gentoo installation
     if [ "$PIHOLE_SKIP_OS_CHECK" != true ]; then
         # This function gets a list of supported OS versions from a TXT record at versions.pi-hole.net
         # and determines whether or not the script is running on one of those systems
@@ -422,7 +467,20 @@ package_manager_detect() {
         PKG_COUNT="${PKG_MANAGER} check-update | grep -E '(.i686|.x86|.noarch|.arm|.src|.riscv64)' | wc -l || true"
         # The command we will use to remove packages (used in the uninstaller)
         PKG_REMOVE="${PKG_MANAGER} remove -y"
-    # If neither apt-get or yum/dnf package managers were found
+
+    # If neither apt-get or rmp/dnf are found,
+    # check for emerge to see if it's gentoo family OS
+    elif is_command emerge; then
+        #Gentoo
+        #############################################
+        PKG_MANAGER="emerge"
+        UPDATE_PKG_CACHE=":" # don't execute eix-sync
+        PKG_INSTALL=("${PKG_MANAGER}")
+        PKG_COUNT="echo 0 || true" # Do not check for outdated packages in gentoo
+        #############################################
+        DNSMASQ_USER="dnsmasq"
+
+    # If neither apt-get, rmp/dnf or emerge are found
     else
         # we cannot install required packages
         printf "  %b No supported package manager found\\n" "${CROSS}"
@@ -513,7 +571,13 @@ build_dependency_package(){
         # Move back into the directory the user started in
         popd &> /dev/null || return 1
 
-    # If neither apt-get or yum/dnf package managers were found
+    # If neither apt-get or rmp/dnf are found,
+    # check for emerge to see if it's gentoo family OS
+    elif command -v emerge -get &> /dev/null; then
+
+        echp "No necessary to build a package for Gentoo"
+
+    # If neither apt-get, emerge, or rmp/dnf are found
     else
         # we cannot build required packages
         printf "  %b No supported package manager found\\n" "${CROSS}"
@@ -792,7 +856,7 @@ chooseInterface() {
 
 # This lets us prefer ULA addresses over GUA
 # This caused problems for some users when their ISP changed their IPv6 addresses
-# See https://github.com/pi-hole/pi-hole/issues/1473#issuecomment-301745953
+# See https://github.com/kyoshiro/pi-hole/issues/1473#issuecomment-301745953
 testIPv6() {
     # first will contain fda2 (ULA)
     printf -v first "%s" "${1%%:*}"
@@ -1525,6 +1589,23 @@ install_dependent_packages() {
             return 1
         fi
 
+    # Emerge Gentoo packages
+    elif is_command emerge ; then
+        for i in $PIHOLE_GENTOO_DEP_PACKAGES; do
+            # Put all packages in install list because emerge will skip already installed packages anyway
+            installArray+=("${i}")
+        done
+        # If there's anything to install, install everything in the list.
+        if [[ "${#installArray[@]}" -gt 0 ]]; then
+            # Promt the user to install the missing packages
+            printf "  %b Processing %s install(s) for: %s, please wait...\\n" "${INFO}" "${PKG_MANAGER}" "${installArray[*]}"
+            printf '%*s\n' "${c}" '' | tr " " -;
+            "${PKG_INSTALL[@]}" "${installArray[@]}"
+            printf '%*s\n' "${c}" '' | tr " " -;
+            return 0
+        fi
+    fi
+
     # If neither apt-get or yum/dnf package managers were found
     else
         # we cannot install the dependency package
@@ -2101,7 +2182,7 @@ get_binary_name() {
         # Special case: This is a 32 bit OS, installed on a 64 bit machine
         # -> change machine processor to download the 32 bit executable
         # We only check this for Debian-based systems as this has been an issue
-        # in the past (see https://github.com/pi-hole/pi-hole/pull/2004)
+        # in the past (see https://github.com/kyoshiro/pi-hole/pull/2004)
         if [[ "${dpkgarch}" == "i386" ]]; then
             printf "%b  %b Detected 32bit (i686) architecture\\n" "${OVER}" "${TICK}"
             l_binary="pihole-FTL-386"
@@ -2398,7 +2479,7 @@ main() {
             # when run via curl piping
             if [[ "$0" == "bash" ]]; then
                 # Download the install script and run it with admin rights
-                exec curl -sSL https://install.pi-hole.net | sudo bash "$@"
+                exec curl -sSL https://raw.githubusercontent.com/kyoshiro/pi-hole/refs/heads/gentoo-installer/automated%20install/basic-install.sh | sudo bash "$@"
             else
                 # when run via calling local bash script
                 exec sudo bash "$0" "$@"
