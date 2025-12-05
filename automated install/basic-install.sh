@@ -199,7 +199,6 @@ EOM
 )
 
 # #########################################
-<<<<<<< HEAD
 PIHOLE_GENTOO_DEP_PACKAGES=(dev-util/dialog \
                             sys-apps/iproute2 \
                             dev-vcs/git \
