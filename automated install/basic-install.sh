@@ -311,6 +311,8 @@ check_fresh_install() {
     # in case of an update (can be a v5 -> v6 or v6 -> v6 update) or repair
     if [[ -f "${PI_HOLE_V6_CONFIG}" ]] || [[ -f "/etc/pihole/setupVars.conf" ]]; then
         fresh_install=false
+    fi
+}
 
 os_check_dig(){
     local protocol="$1"
