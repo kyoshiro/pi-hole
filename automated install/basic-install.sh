@@ -1517,7 +1517,7 @@ stop_service() {
     if is_command systemctl; then
         systemctl -q stop "${1}" || true
     else
-        service "${1}" stop >/dev/null || true
+        rc-service "${1}" stop >/dev/null || true
     fi
     printf "%b  %b %s...\\n" "${OVER}" "${TICK}" "${str}"
 }
@@ -1533,7 +1533,7 @@ restart_service() {
         systemctl -q restart "${1}"
     else
         # Otherwise, fall back to the service command
-        service "${1}" restart >/dev/null
+        rc-service "${1}" restart >/dev/null
     fi
     printf "%b  %b %s...\\n" "${OVER}" "${TICK}" "${str}"
 }
@@ -1584,7 +1584,7 @@ check_service_active() {
         rc-status default boot | grep -q "${1}"
     else
         # Otherwise, fall back to service command
-        service "${1}" status &>/dev/null
+        rc-service "${1}" status &>/dev/null
     fi
 }
 
