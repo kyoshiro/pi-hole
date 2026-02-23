@@ -2497,7 +2497,7 @@ migrate_dnsmasq_configs() {
 # Check for availability of either the "service" or "systemctl" commands
 check_service_command() {
     # Check for the availability of the "service" command
-    if ! is_command service && ! is_command systemctl; then
+    if ! is_command rc-service && ! is_command systemctl; then
         # If neither the "service" nor the "systemctl" command is available, inform the user
         printf "  %b Neither the service nor the systemctl commands are available\\n" "${CROSS}"
         printf "      on this machine. This Pi-hole installer cannot continue.\\n"
