@@ -13,7 +13,7 @@
 #
 # Install with this command (from your Linux machine):
 #
-# curl -sSL https://install.pi-hole.net | bash
+# curl -sSL https://raw.githubusercontent.com/kyoshiro/pi-hole/refs/heads/gentoo-installer/automated%20install/basic-install.sh | bash
 
 # -e option instructs bash to immediately exit if any command [1] has a non-zero exit status
 # We do not want users to end up with a partially working install, so we exit the script
@@ -21,7 +21,7 @@
 set -e
 
 # Append common folders to the PATH to ensure that all basic commands are available.
-# When using "su" an incomplete PATH could be passed: https://github.com/pi-hole/pi-hole/issues/3209
+# When using "su" an incomplete PATH could be passed: https://github.com/kyoshiro/pi-hole/issues/3209
 export PATH+=':/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'
 
 # Trap any errors, then exit
@@ -81,7 +81,7 @@ webroot="/var/www/html"
 # Two notable scripts are gravity.sh (used to generate the HOSTS file) and advanced/Scripts/webpage.sh (used to install the Web admin interface)
 webInterfaceGitUrl="https://github.com/pi-hole/web.git"
 webInterfaceDir="${webroot}/admin"
-piholeGitUrl="https://github.com/pi-hole/pi-hole.git"
+piholeGitUrl="-b gentoo-installer-v6 https://github.com/kyoshiro/pi-hole.git"
 PI_HOLE_LOCAL_REPO="/etc/.pihole"
 # List of pihole scripts, stored in an array
 PI_HOLE_FILES=(list piholeDebug piholeLogFlush setupLCD update version gravity uninstall webpage)
@@ -183,6 +183,52 @@ PIHOLE_META_DEPS_APK=(
     unzip
 )
 
+# Content of Pi-hole's meta package control file on Gentoo based systems
+PIHOLE_META_PACKAGE_CONTROL_EMERGE=$(
+    cat <<EOM
+Name: pihole-meta
+Version: 0.1
+Release: 1
+License: EUPL
+BuildArch: arm64 amd64 x86
+Summary: Pi-hole meta package
+Requires: app-admin/sudo, app-arch/unzip, app-misc/jq, app-shells/bash-completion, dev-libs/newt, dev-util/dialog, dev-vcs/git, net-analyzer/netcat, net-dns/dnsmasq, net-dns/libidn2, net-misc/curl, net-misc/dhcp, net-misc/iputils, net-misc/wget, sys-apps/findutils, sys-apps/grep, sys-apps/iproute2, sys-apps/lshw, sys-apps/net-tools, sys-devel/binutils, sys-devel/bc, sys-process/lsof, sys-process/procps, sys-process/psmisc, virtual/cron
+%description
+Pi-hole meta package
+EOM
+)
+
+# #########################################
+PIHOLE_GENTOO_DEP_PACKAGES=(dev-util/dialog \
+                            sys-apps/iproute2 \
+                            dev-vcs/git \
+                            net-misc/dhcp \
+                            sys-apps/net-tools \
+                            dev-libs/newt \
+                            sys-process/procps \
+                            sys-devel/binutils \
+                            sys-apps/lshw \
+                            sys-apps/grep \
+                            sys-apps/findutils \
+                            sys-process/psmisc \
+                            sys-devel/bc \
+                            virtual/cron \
+                            net-misc/curl \
+                            sys-apps/findutils \
+                            net-dns/dnsmasq \
+                            net-misc/iputils \
+                            sys-process/lsof \
+                            net-analyzer/netcat \
+                            app-admin/sudo \
+                            app-arch/unzip \
+                            net-misc/wget \
+                            net-dns/libidn2 \
+                            app-misc/jq \
+                            app-shells/bash-completion)
+
+PIHOLE_GENTOO_DEP_PACKAGES="app-admin/sudo app-arch/unzip app-misc/jq app-shells/bash-completion dev-libs/newt dev-util/dialog dev-vcs/git net-analyzer/netcat net-dns/dnsmasq net-dns/libidn2 net-misc/curl net-misc/dhcp net-misc/iputils net-misc/wget sys-apps/findutils sys-apps/grep sys-apps/iproute2 sys-apps/lshw sys-apps/net-tools sys-devel/binutils sys-devel/bc sys-process/lsof sys-process/procps sys-process/psmisc virtual/cron"
+# #########################################
+
 ######## Undocumented Flags. Shhh ########
 # These are undocumented flags; some of which we can use when repairing an installation
 # The runUnattended flag is one example of this
@@ -268,6 +314,177 @@ check_fresh_install() {
     fi
 }
 
+os_check_dig(){
+    local protocol="$1"
+    local domain="$2"
+    local nameserver="$3"
+    local response
+
+    response="$(dig -"${protocol}" +short -t txt "${domain}" "${nameserver}" 2>&1
+    echo $?
+    )"
+    echo "${response}"
+}
+
+os_check_dig_response(){
+    # Checks the reply from the dig command to determine if it's a valid response
+    local digReply="$1"
+    local response
+
+    # Dig returned 0 (success), so get the actual response, and loop through it to determine if the detected variables above are valid
+    response="${digReply%%$'\n'*}"
+    # If the value of ${response} is a single 0, then this is the return code, not an actual response.
+    if [ "${response}" == 0 ]; then
+        echo false
+    else
+        echo true
+    fi
+}
+
+os_check() {
+    PIHOLE_SKIP_OS_CHECK=true # true here for Gentoo installation
+    if [ "$PIHOLE_SKIP_OS_CHECK" != true ]; then
+        # This function gets a list of supported OS versions from a TXT record at versions.pi-hole.net
+        # and determines whether or not the script is running on one of those systems
+        local remote_os_domain valid_os valid_version valid_response detected_os detected_version display_warning cmdResult digReturnCode response
+        local piholeNameserver="@ns1.pi-hole.net"
+        remote_os_domain=${OS_CHECK_DOMAIN_NAME:-"versions.pi-hole.net"}
+
+        detected_os=$(grep '^ID=' /etc/os-release | cut -d '=' -f2 | tr -d '"')
+        detected_version=$(grep VERSION_ID /etc/os-release | cut -d '=' -f2 | tr -d '"')
+
+        # Test via IPv4 and hardcoded nameserver ns1.pi-hole.net
+        cmdResult=$(os_check_dig 4 "${remote_os_domain}" "${piholeNameserver}")
+
+        # Gets the return code of the previous command (last line)
+        digReturnCode="${cmdResult##*$'\n'}"
+
+        if [ ! "${digReturnCode}" == "0" ]; then
+            valid_response=false
+        else
+            valid_response=$(os_check_dig_response cmdResult)
+        fi
+
+        # Try again via IPv6 and hardcoded nameserver ns1.pi-hole.net
+        if [ "$valid_response" = false ]; then
+            unset valid_response
+            unset cmdResult
+            unset digReturnCode
+
+            cmdResult=$(os_check_dig 6 "${remote_os_domain}" "${piholeNameserver}")
+            # Gets the return code of the previous command (last line)
+            digReturnCode="${cmdResult##*$'\n'}"
+
+            if [ ! "${digReturnCode}" == "0" ]; then
+                valid_response=false
+            else
+                valid_response=$(os_check_dig_response cmdResult)
+            fi
+        fi
+
+        # Try again without hardcoded nameserver
+        if [ "$valid_response" = false ]; then
+            unset valid_response
+            unset cmdResult
+            unset digReturnCode
+
+            cmdResult=$(os_check_dig 4 "${remote_os_domain}")
+            # Gets the return code of the previous command (last line)
+            digReturnCode="${cmdResult##*$'\n'}"
+
+            if [ ! "${digReturnCode}" == "0" ]; then
+                valid_response=false
+            else
+                valid_response=$(os_check_dig_response cmdResult)
+            fi
+        fi
+
+        if [ "$valid_response" = false ]; then
+            unset valid_response
+            unset cmdResult
+            unset digReturnCode
+
+            cmdResult=$(os_check_dig 6 "${remote_os_domain}")
+            # Gets the return code of the previous command (last line)
+            digReturnCode="${cmdResult##*$'\n'}"
+
+            if [ ! "${digReturnCode}" == "0" ]; then
+                valid_response=false
+            else
+                valid_response=$(os_check_dig_response cmdResult)
+            fi
+        fi
+
+        if [ "$valid_response" = true ]; then
+            response="${cmdResult%%$'\n'*}"
+            IFS=" " read -r -a supportedOS < <(echo "${response}" | tr -d '"')
+            for distro_and_versions in "${supportedOS[@]}"; do
+                distro_part="${distro_and_versions%%=*}"
+                versions_part="${distro_and_versions##*=}"
+
+                # If the distro part is a (case-insensitive) substring of the computer OS
+                if [[ "${detected_os^^}" =~ ${distro_part^^} ]]; then
+                    valid_os=true
+                    IFS="," read -r -a supportedVer <<<"${versions_part}"
+                    for version in "${supportedVer[@]}"; do
+                        if [[ "${detected_version}" =~ $version ]]; then
+                            valid_version=true
+                            break
+                        fi
+                    done
+                    break
+                fi
+            done
+        fi
+
+        if [ "$valid_os" = true ] && [ "$valid_version" = true ] && [ "$valid_response" = true ]; then
+            display_warning=false
+        fi
+
+        if [ "$display_warning" != false ]; then
+            if [ "$valid_response" = false ]; then
+
+                if [ "${digReturnCode}" -eq 0 ]; then
+                    errStr="dig succeeded, but response was blank. Please contact support"
+                else
+                    errStr="dig failed with return code ${digReturnCode}"
+                fi
+                printf "  %b %bRetrieval of supported OS list failed. %s. %b\\n" "${CROSS}" "${COL_LIGHT_RED}" "${errStr}" "${COL_NC}"
+                printf "      %bUnable to determine if the detected OS (%s %s) is supported%b\\n" "${COL_LIGHT_RED}" "${detected_os^}" "${detected_version}" "${COL_NC}"
+                printf "      Possible causes for this include:\\n"
+                printf "        - Firewall blocking DNS lookups from Pi-hole device to ns1.pi-hole.net\\n"
+                printf "        - DNS resolution issues of the host system\\n"
+                printf "        - Other internet connectivity issues\\n"
+            else
+                printf "  %b %bUnsupported OS detected: %s %s%b\\n" "${CROSS}" "${COL_LIGHT_RED}" "${detected_os^}" "${detected_version}" "${COL_NC}"
+                printf "      If you are seeing this message and you do have a supported OS, please contact support.\\n"
+            fi
+            printf "\\n"
+            printf "      %bhttps://docs.pi-hole.net/main/prerequisites/#supported-operating-systems%b\\n" "${COL_LIGHT_GREEN}" "${COL_NC}"
+            printf "\\n"
+            printf "      If you wish to attempt to continue anyway, you can try one of the following commands to skip this check:\\n"
+            printf "\\n"
+            printf "      e.g: If you are seeing this message on a fresh install, you can run:\\n"
+            printf "             %bcurl -sSL https://install.pi-hole.net | sudo PIHOLE_SKIP_OS_CHECK=true bash%b\\n" "${COL_LIGHT_GREEN}" "${COL_NC}"
+            printf "\\n"
+            printf "           If you are seeing this message after having run pihole -up:\\n"
+            printf "             %bsudo PIHOLE_SKIP_OS_CHECK=true pihole -r%b\\n" "${COL_LIGHT_GREEN}" "${COL_NC}"
+            printf "           (In this case, your previous run of pihole -up will have already updated the local repository)\\n"
+            printf "\\n"
+            printf "      It is possible that the installation will still fail at this stage due to an unsupported configuration.\\n"
+            printf "      If that is the case, you can feel free to ask the community on Discourse with the %bCommunity Help%b category:\\n" "${COL_LIGHT_RED}" "${COL_NC}"
+            printf "      %bhttps://discourse.pi-hole.net/c/bugs-problems-issues/community-help/%b\\n" "${COL_LIGHT_GREEN}" "${COL_NC}"
+            printf "\\n"
+            exit 1
+
+        else
+            printf "  %b %bSupported OS detected%b\\n" "${TICK}" "${COL_LIGHT_GREEN}" "${COL_NC}"
+        fi
+    else
+        printf "  %b %bPIHOLE_SKIP_OS_CHECK env variable set to true - installer will continue%b\\n" "${INFO}" "${COL_LIGHT_GREEN}" "${COL_NC}"
+    fi
+}
+
 # Compatibility
 package_manager_detect() {
 
@@ -309,6 +526,19 @@ package_manager_detect() {
         PKG_COUNT="${PKG_MANAGER} list --upgradable -q | wc -l"
         PKG_REMOVE="${PKG_MANAGER} del"
 
+    # If neither apt-get or rmp/dnf are found,
+    # check for emerge to see if it's gentoo family OS
+    elif is_command emerge; then
+        #Gentoo
+        #############################################
+        PKG_MANAGER="emerge"
+        UPDATE_PKG_CACHE=":" # don't execute eix-sync
+        PKG_INSTALL=("${PKG_MANAGER}")
+        PKG_COUNT="echo 0 || true" # Do not check for outdated packages in gentoo
+        #############################################
+        DNSMASQ_USER="dnsmasq"
+
+    # If neither apt-get, rmp/dnf or emerge are found
     else
         # we cannot install required packages
         printf "  %b No supported package manager found\\n" "${CROSS}"
@@ -406,7 +636,12 @@ build_dependency_package(){
         # Move back into the directory the user started in
         popd &> /dev/null || return 1
 
-    # If neither apt-get or yum/dnf package managers were found
+    # If neither apt-get or rmp/dnf are found,
+    # check for emerge to see if it's gentoo family OS
+    elif command -v emerge -get &> /dev/null; then
+        printf "  %b ATM we do not create a pihole-meta package.\\n\\n" "${INFO}"
+
+    # If neither apt-get, emerge, or rmp/dnf are found
     else
         # we cannot build required packages
         printf "  %b No supported package manager found\\n" "${CROSS}"
@@ -714,7 +949,7 @@ chooseInterface() {
 
 # This lets us prefer ULA addresses over GUA
 # This caused problems for some users when their ISP changed their IPv6 addresses
-# See https://github.com/pi-hole/pi-hole/issues/1473#issuecomment-301745953
+# See https://github.com/kyoshiro/pi-hole/issues/1473#issuecomment-301745953
 testIPv6() {
     # first will contain fda2 (ULA)
     printf -v first "%s" "${1%%:*}"
@@ -1282,7 +1517,7 @@ stop_service() {
     if is_command systemctl; then
         systemctl -q stop "${1}" || true
     else
-        service "${1}" stop >/dev/null || true
+        rc-service "${1}" stop >/dev/null || true
     fi
     printf "%b  %b %s...\\n" "${OVER}" "${TICK}" "${str}"
 }
@@ -1298,7 +1533,7 @@ restart_service() {
         systemctl -q restart "${1}"
     else
         # Otherwise, fall back to the service command
-        service "${1}" restart >/dev/null
+        rc-service "${1}" restart >/dev/null
     fi
     printf "%b  %b %s...\\n" "${OVER}" "${TICK}" "${str}"
 }
@@ -1349,7 +1584,7 @@ check_service_active() {
         rc-status default boot | grep -q "${1}"
     else
         # Otherwise, fall back to service command
-        service "${1}" status &>/dev/null
+        rc-service "${1}" status &>/dev/null
     fi
 }
 
@@ -1416,7 +1651,7 @@ notify_package_updates_available() {
 install_dependent_packages() {
     # Install meta dependency package
     local str="Installing Pi-hole dependency package"
-    printf "  %b %s..." "${INFO}" "${str}"
+    printf "  %b %s...\\n" "${INFO}" "${str}"
 
     # Install Debian/Ubuntu packages
     if is_command apt-get; then
@@ -1469,6 +1704,28 @@ install_dependent_packages() {
             printf "  %b Error: Unable to install Pi-hole dependency package.\\n" "${COL_RED}"
             return 1
         fi
+    # Emerge Gentoo packages
+    elif is_command emerge ; then
+        for i in $PIHOLE_GENTOO_DEP_PACKAGES; do
+            # Check if the package is already installed
+            if eval "equery l" "${i}" &>/dev/null; then
+                printf "  %b  %b Checking for %s\\n" "${OVER}" "${TICK}" "${i}"
+            else
+                printf "  %b  %b Checking for %s\\n" "${OVER}" "${CROSS}" "${i}"
+                installArray+=("${i}")
+            fi
+        done
+        # If there's anything to install, install everything in the list.
+        if [[ "${#installArray[@]}" -gt 0 ]]; then
+            # Promt the user to install the missing packages
+            printf "  %b Processing %s install(s) for: %s, please wait...\\n" "${INFO}" "${PKG_MANAGER}" "${installArray[*]}"
+            printf '%*s\n' "${c}" '' | tr " " -;
+            "${PKG_INSTALL[@]}" "${installArray[@]}"
+            printf '%*s\n' "${c}" '' | tr " " -;
+            return 0
+        fi
+
+    # If neither apt-get or yum/dnf package managers were found
     else
         # we cannot install the dependency package
         printf "  %b No supported package manager found\\n" "${CROSS}"
@@ -1987,7 +2244,7 @@ get_binary_name() {
         # Special case: This is a 32 bit OS, installed on a 64 bit machine
         # -> change machine processor to download the 32 bit executable
         # We only check this for Debian-based systems as this has been an issue
-        # in the past (see https://github.com/pi-hole/pi-hole/pull/2004)
+        # in the past (see https://github.com/kyoshiro/pi-hole/pull/2004)
         if [[ "${dpkgarch}" == "i386" ]]; then
             printf "%b  %b Detected 32bit (i686) architecture\\n" "${OVER}" "${TICK}"
             l_binary="pihole-FTL-386"
@@ -2240,7 +2497,7 @@ migrate_dnsmasq_configs() {
 # Check for availability of either the "service" or "systemctl" commands
 check_service_command() {
     # Check for the availability of the "service" command
-    if ! is_command service && ! is_command systemctl; then
+    if ! is_command rc-service && ! is_command systemctl; then
         # If neither the "service" nor the "systemctl" command is available, inform the user
         printf "  %b Neither the service nor the systemctl commands are available\\n" "${CROSS}"
         printf "      on this machine. This Pi-hole installer cannot continue.\\n"
@@ -2277,7 +2534,7 @@ main() {
             # when run via curl piping
             if [[ "$0" == "bash" ]]; then
                 # Download the install script and run it with admin rights
-                exec curl -sSL https://install.pi-hole.net | sudo bash "$@"
+                exec curl -sSL https://raw.githubusercontent.com/kyoshiro/pi-hole/refs/heads/gentoo-installer/automated%20install/basic-install.sh | sudo bash "$@"
             else
                 # when run via calling local bash script
                 exec sudo bash "$0" "$@"
